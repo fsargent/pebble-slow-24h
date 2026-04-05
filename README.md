@@ -1,6 +1,6 @@
 # slow-24h
 
-A 24-hour Pebble watchface for the Pebble Time Round 2 (gabbro), inspired by [Slow Watches](https://slow-watches.com).
+A 24-hour Pebble watchface for round Pebble watches, inspired by [Slow Watches](https://slow-watches.com).
 
 ## Concept
 
@@ -17,9 +17,10 @@ The face is a 24-hour clock with 12 (noon) at the top and 0/24 (midnight) at the
 - **Auto-inverting labels** — hour numerals and tick marks flip between black and white to stay readable against the day/night background
 - **Battery-friendly** — redraws once per minute
 
-## Platform
+## Platforms
 
-Gabbro (Pebble Time Round 2) — circular 180×180 display.
+- **Chalk** — Pebble Time Round (180×180)
+- **Gabbro** — Pebble Time Round 2 (180×180)
 
 ## Building
 

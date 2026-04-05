@@ -107,14 +107,28 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     );
 
     bool is_day = angle_in_arc(angle, sunrise_angle, sunset_angle);
-    graphics_context_set_text_color(ctx, is_day ? GColorBlack : GColorWhite);
+    GColor fg      = is_day ? GColorBlack : GColorWhite;
+    GColor outline = is_day ? GColorWhite : GColorBlack;
 
     int display_h = s_use_12h ? (i % 12 == 0 ? 12 : i % 12) : i;
     char num_str[4];
     snprintf(num_str, sizeof(num_str), "%d", display_h);
+    GFont font = is_major ? font_major : font_minor;
     GRect text_rect = GRect(pos.x - 11, pos.y - 9, 22, 16);
-    graphics_draw_text(ctx, num_str, is_major ? font_major : font_minor,
-                       text_rect, GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+
+    graphics_context_set_text_color(ctx, outline);
+    for (int dx = -1; dx <= 1; dx++) {
+      for (int dy = -1; dy <= 1; dy++) {
+        if (dx == 0 && dy == 0) continue;
+        GRect r = GRect(text_rect.origin.x + dx, text_rect.origin.y + dy,
+                        text_rect.size.w, text_rect.size.h);
+        graphics_draw_text(ctx, num_str, font, r,
+                           GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+      }
+    }
+    graphics_context_set_text_color(ctx, fg);
+    graphics_draw_text(ctx, num_str, font, text_rect,
+                       GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
   }
 
   // Single 24h hand — thin line from center to edge
