@@ -1,0 +1,32 @@
+{
+  "name": "24h",
+  "author": "fsargent",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "slow-24h",
+    "uuid": "77147518-8df5-4869-b412-13aa8acd3eb1",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "chalk",
+      "gabbro"
+    ],
+    "capabilities": [
+      "location"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "messageKeys": [
+      "KEY_SUNRISE",
+      "KEY_SUNSET",
+      "KEY_USE_12H"
+    ],
+    "resources": {
+      "media": []
+    }
+  }
+}
