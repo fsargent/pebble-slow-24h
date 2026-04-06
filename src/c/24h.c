@@ -8,8 +8,8 @@
 #define KEY_SUNSET     1
 #define KEY_USE_12H    2
 
-#define DEFAULT_SUNRISE_MIN  360   // 6:00 AM
-#define DEFAULT_SUNSET_MIN  1080  // 6:00 PM
+#define DEFAULT_SUNRISE_MIN  392   // 6:32 AM (NYC)
+#define DEFAULT_SUNSET_MIN  1164  // 7:24 PM (NYC)
 
 static Window  *s_window;
 static Layer   *s_canvas_layer;
