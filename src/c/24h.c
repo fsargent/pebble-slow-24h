@@ -12,8 +12,8 @@
 #define KEY_RAIN_HOURS  3
 #define KEY_SHOW_RAIN   4
 
-#define DEFAULT_SUNRISE_MIN  360    // 6:00 AM
-#define DEFAULT_SUNSET_MIN   1080   // 6:00 PM
+#define DEFAULT_SUNRISE_MIN  330    // 5:30 AM
+#define DEFAULT_SUNSET_MIN   1155   // 7:15 PM
 #define DEFAULT_RAIN_HOURS   0
 
 static Window   *s_window;
