@@ -1,12 +1,14 @@
 {
-  "name": "Slow-24h",
+  "name": "SingleHanded #1",
   "author": "fsargent",
-  "version": "1.1.0",
-  "keywords": ["pebble-app"],
+  "version": "1.2.0",
+  "keywords": [
+    "pebble-app"
+  ],
   "private": true,
   "dependencies": {},
   "pebble": {
-    "displayName": "slow-24h",
+    "displayName": "SingleHanded #1",
     "uuid": "77147518-8df5-4869-b412-13aa8acd3eb1",
     "sdkVersion": "3",
     "enableMultiJS": true,

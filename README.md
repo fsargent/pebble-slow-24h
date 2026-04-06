@@ -1,21 +1,27 @@
-# slow-24h
+# SingleHanded
 
-A 24-hour Pebble watchface for round Pebble watches, inspired by [Slow Watches](https://slow-watches.com).
+A 24-hour one-hand Pebble watchface for round Pebble watches. One hand, one rotation per day.
 
 ## Concept
 
-One hand. One rotation per day. Time read to the nearest ~15 minutes — intentionally slow.
+Time read to the nearest ~15 minutes. The face is a 24-hour clock with 12 (noon) at the top and 0/24 (midnight) at the bottom. The full dial shows a live day/night arc — white where the sun is up, black where it isn't. Hours with rain are overlaid in blue. A thin red hand spans the full dial.
 
-The face is a 24-hour clock with 12 (noon) at the top and 0/24 (midnight) at the bottom. The background is split into a live day/night arc: white where the sun is up, black where it isn't. Hours with rain are overlaid in blue. A thin red hand spans the full dial.
+## Designs
+
+This watchface has two visual styles, managed on separate branches:
+
+- **Design #1** (`main`) — full-face day/night fill, red hand, numerals inside tick marks
+- **Design #2** (`one-hand-24h-design-2`) — outer ring day/night, black tapered hand, numerals on the outer edge, tick marks inside, AM/PM labels
 
 ## Features
 
 - **Single 24h hand** — red, edge-to-edge, completes one full rotation per day
 - **Dynamic sunrise/sunset arc** — white daytime, black nighttime, fetched from the [Open-Meteo API](https://open-meteo.com) for your actual location
-- **Rain overlay** — hours with >50% precipitation probability are shown as light blue (day) or dark blue (night) arcs on the dial. Enabled automatically when weather data is available.
-- **Location-aware** — JS companion gets GPS from your phone on launch, fetches today's sunrise/sunset and hourly precipitation from Open-Meteo, and sends everything to the watch. Falls back to defaults if unavailable. All values are persisted across restarts.
-- **12h numeral mode** — optional setting to show 1-12 twice instead of 0-23 (you know AM vs PM by which side of the dial the hand is on)
-- **Auto-inverting labels** — hour numerals and tick marks flip between black and white to stay readable against the day/night background, with outlines for visibility at boundaries
+- **Rain overlay** — hours with >50% precipitation probability shown as light blue (day) or dark blue (night) arcs. Toggleable in settings.
+- **Location-aware** — JS companion gets GPS from your phone on launch, fetches today's sunrise/sunset and hourly precipitation from Open-Meteo, and sends everything to the watch. Falls back to defaults if unavailable. All values persist across restarts.
+- **Settings page** — toggle 12h numeral mode and rain overlay from your phone
+- **12h numeral mode** — optional setting to show 1-12 twice instead of 0-23 (AM vs PM by which side of the dial the hand is on)
+- **Auto-inverting labels** — hour numerals and tick marks flip between black and white to stay readable against the day/night background, with outlines at boundaries
 - **Battery-friendly** — redraws once per minute
 
 ## Platforms
@@ -53,7 +59,7 @@ The rain bitmask is a 24-bit integer where bit N corresponds to hour N. Some use
 | `0x00F00F` | 0-3, 12-15 | Two blocks (night + day) |
 | `0xFFFFFF` | 0-23 | Rain all day |
 
-Reset all defaults to `0` before shipping.
+Reset `DEFAULT_RAIN_HOURS` to `0` before shipping.
 
 You can also use `take-screenshots.sh` to automate screenshot capture:
 
@@ -66,4 +72,4 @@ You can also use `take-screenshots.sh` to automate screenshot capture:
 
 Sunrise, sunset, and hourly precipitation probability come from the [Open-Meteo API](https://open-meteo.com) (free, no API key). The JS companion requests them once on launch using the phone's GPS coordinates, collapses the 24 hourly precipitation probabilities into a single bitmask (bit set if >50%), and sends everything to the watch via AppMessage.
 
-Settings are stored in persistent storage and can be updated via AppMessage: `KEY_SUNRISE`, `KEY_SUNSET`, `KEY_USE_12H`, `KEY_RAIN_HOURS`.
+Settings are stored in persistent storage and can be updated via AppMessage: `KEY_SUNRISE`, `KEY_SUNSET`, `KEY_USE_12H`, `KEY_RAIN_HOURS`, `KEY_SHOW_RAIN`.
