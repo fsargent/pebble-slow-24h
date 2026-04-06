@@ -22,7 +22,7 @@ static int32_t   s_sunrise_min   = DEFAULT_SUNRISE_MIN;
 static int32_t   s_sunset_min    = DEFAULT_SUNSET_MIN;
 static int32_t   s_sunrise_angle = 0;
 static int32_t   s_sunset_angle  = 0;
-static bool      s_use_12h       = false;
+static bool      s_use_12h       = true;
 static bool      s_show_rain     = true;
 static uint32_t  s_rain_hours    = DEFAULT_RAIN_HOURS;
 
@@ -57,7 +57,8 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   int    w      = bounds.size.w;
   int    h      = bounds.size.h;
   GPoint center = GPoint(w / 2, h / 2);
-  int    radius = w / 2;
+  int    radius     = w / 2;
+  int    ring_width = 38;
 
   int32_t sunrise_angle = s_sunrise_angle;
   int32_t sunset_angle  = s_sunset_angle;
@@ -65,18 +66,20 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   time_t     now   = time(NULL);
   struct tm *local = localtime(&now);
 
-  // Background: full white (day), then paint the night arc black.
+  // White interior
   graphics_context_set_fill_color(ctx, GColorWhite);
   graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, 0, TRIG_MAX_ANGLE);
 
+  // Night arc — outer ring only
   graphics_context_set_fill_color(ctx, GColorBlack);
   if (sunset_angle <= sunrise_angle) {
-    graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, sunset_angle, sunrise_angle);
+    graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, ring_width, sunset_angle, sunrise_angle);
   } else {
-    graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, sunset_angle, TRIG_MAX_ANGLE);
-    graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, 0, sunrise_angle);
+    graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, ring_width, sunset_angle, TRIG_MAX_ANGLE);
+    graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, ring_width, 0, sunrise_angle);
   }
 
+  // Rain overlay — outer ring only
   if (s_show_rain) {
     for (int rh = 0; rh < 24; rh++) {
       if (!(s_rain_hours & (1 << rh))) continue;
@@ -91,44 +94,20 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
       int32_t a1 = hour_to_angle(rh + 1);
       graphics_context_set_fill_color(ctx, cur_day ? GColorPictonBlue : GColorOxfordBlue);
       if (a0 <= a1) {
-        graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, a0, a1);
+        graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, ring_width, a0, a1);
       } else {
-        graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, a0, TRIG_MAX_ANGLE);
-        graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, 0, a1);
+        graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, ring_width, a0, TRIG_MAX_ANGLE);
+        graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, ring_width, 0, a1);
       }
     }
   }
 
-  // 24 tick marks
-  for (int i = 0; i < 24; i++) {
-    int32_t angle    = hour_to_angle(i);
-    int     tick_len = (i % 6 == 0) ? 12 : (i % 3 == 0) ? 8 : 5;
-    int     r_outer  = radius - 1;
-    int     r_inner  = r_outer - tick_len;
-
-    GPoint outer = GPoint(
-      center.x + (r_outer * sin_lookup(angle)) / TRIG_MAX_RATIO,
-      center.y - (r_outer * cos_lookup(angle)) / TRIG_MAX_RATIO
-    );
-    GPoint inner = GPoint(
-      center.x + (r_inner * sin_lookup(angle)) / TRIG_MAX_RATIO,
-      center.y - (r_inner * cos_lookup(angle)) / TRIG_MAX_RATIO
-    );
-
-    bool is_day = angle_in_arc(angle, sunrise_angle, sunset_angle);
-    graphics_context_set_stroke_color(ctx, is_day ? GColorBlack : GColorWhite);
-    graphics_context_set_stroke_width(ctx, (i % 6 == 0) ? 2 : 1);
-    graphics_draw_line(ctx, outer, inner);
-  }
-
-  // Numerals
-  GFont font_major = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
-  GFont font_minor = fonts_get_system_font(FONT_KEY_FONT_FALLBACK);
+  // Numerals — outer edge
+  GFont num_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
 
   for (int i = 0; i < 24; i++) {
-    int32_t angle    = hour_to_angle(i);
-    bool    is_major = (i % 6 == 0);
-    int     nr       = radius - (is_major ? 22 : 19);
+    int32_t angle = hour_to_angle(i);
+    int     nr    = radius - 8;
 
     GPoint pos = GPoint(
       center.x + (nr * sin_lookup(angle)) / TRIG_MAX_RATIO,
@@ -142,8 +121,7 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     int display_h = s_use_12h ? (i % 12 == 0 ? 12 : i % 12) : i;
     char num_str[4];
     snprintf(num_str, sizeof(num_str), "%d", display_h);
-    GFont font = is_major ? font_major : font_minor;
-    GRect text_rect = GRect(pos.x - 11, pos.y - 9, 22, 16);
+    GRect text_rect = GRect(pos.x - 10, pos.y - 8, 20, 16);
 
     graphics_context_set_text_color(ctx, outline);
     for (int dx = -1; dx <= 1; dx++) {
@@ -151,35 +129,102 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
         if (dx == 0 && dy == 0) continue;
         GRect r = GRect(text_rect.origin.x + dx, text_rect.origin.y + dy,
                         text_rect.size.w, text_rect.size.h);
-        graphics_draw_text(ctx, num_str, font, r,
+        graphics_draw_text(ctx, num_str, num_font, r,
                            GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
       }
     }
     graphics_context_set_text_color(ctx, fg);
-    graphics_draw_text(ctx, num_str, font, text_rect,
+    graphics_draw_text(ctx, num_str, num_font, text_rect,
                        GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
   }
 
-  // Single 24h hand — thin line from center to edge
+  // Tick marks — inside numerals, every 15 minutes (96 ticks for 24h)
+  int tick_base = radius - 18;
+  for (int i = 0; i < 96; i++) {
+    int32_t angle = (int32_t)((int64_t)TRIG_MAX_ANGLE * ((i * 15 + 12 * 60) % (24 * 60)) / (24 * 60));
+    bool on_hour    = (i % 4 == 0);
+    bool on_half    = (i % 2 == 0);
+    int  tick_len   = on_hour ? 14 : on_half ? 10 : 5;
+    int  r_outer    = tick_base;
+    int  r_inner    = tick_base - tick_len;
+
+    GPoint outer = GPoint(
+      center.x + (r_outer * sin_lookup(angle)) / TRIG_MAX_RATIO,
+      center.y - (r_outer * cos_lookup(angle)) / TRIG_MAX_RATIO
+    );
+    GPoint inner = GPoint(
+      center.x + (r_inner * sin_lookup(angle)) / TRIG_MAX_RATIO,
+      center.y - (r_inner * cos_lookup(angle)) / TRIG_MAX_RATIO
+    );
+
+    bool is_day = angle_in_arc(angle, sunrise_angle, sunset_angle);
+    graphics_context_set_stroke_color(ctx, is_day ? GColorBlack : GColorWhite);
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_draw_line(ctx, outer, inner);
+  }
+
+  // AM / PM labels
+  GFont label_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  int label_y = center.y - 7;
+  int label_offset = (radius - ring_width) * 2 / 3;
+
+  GRect am_rect = GRect(center.x - label_offset - 12, label_y, 24, 16);
+  GRect pm_rect = GRect(center.x + label_offset - 12, label_y, 24, 16);
+
+  int32_t left_angle  = TRIG_MAX_ANGLE * 3 / 4;
+  int32_t right_angle = TRIG_MAX_ANGLE / 4;
+  bool left_day  = angle_in_arc(left_angle, sunrise_angle, sunset_angle);
+  bool right_day = angle_in_arc(right_angle, sunrise_angle, sunset_angle);
+
+  graphics_context_set_text_color(ctx, left_day ? GColorDarkGray : GColorLightGray);
+  graphics_draw_text(ctx, "AM", label_font, am_rect,
+                     GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+  graphics_context_set_text_color(ctx, right_day ? GColorDarkGray : GColorLightGray);
+  graphics_draw_text(ctx, "PM", label_font, pm_rect,
+                     GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+
+  // Hand — tapered from base to pointed tip
   int32_t hand_angle = minutes_to_angle(local->tm_hour * 60 + local->tm_min);
-  int     hand_len   = radius - 1;
-  int     tail_len   = 12;
+  int     hand_len   = tick_base;
+  int     tail_len   = 15;
+  int     base_half  = 4;
 
-  GPoint hand_tip = GPoint(
-    center.x + (hand_len * sin_lookup(hand_angle)) / TRIG_MAX_RATIO,
-    center.y - (hand_len * cos_lookup(hand_angle)) / TRIG_MAX_RATIO
+  int32_t perp_angle = hand_angle + TRIG_MAX_ANGLE / 4;
+  int32_t sin_h = sin_lookup(hand_angle);
+  int32_t cos_h = cos_lookup(hand_angle);
+  int32_t sin_p = sin_lookup(perp_angle);
+  int32_t cos_p = cos_lookup(perp_angle);
+
+  GPoint tip = GPoint(
+    center.x + (hand_len * sin_h) / TRIG_MAX_RATIO,
+    center.y - (hand_len * cos_h) / TRIG_MAX_RATIO
   );
-  GPoint hand_tail = GPoint(
-    center.x - (tail_len * sin_lookup(hand_angle)) / TRIG_MAX_RATIO,
-    center.y + (tail_len * cos_lookup(hand_angle)) / TRIG_MAX_RATIO
+  GPoint base_l = GPoint(
+    center.x + (base_half * sin_p) / TRIG_MAX_RATIO,
+    center.y - (base_half * cos_p) / TRIG_MAX_RATIO
+  );
+  GPoint base_r = GPoint(
+    center.x - (base_half * sin_p) / TRIG_MAX_RATIO,
+    center.y + (base_half * cos_p) / TRIG_MAX_RATIO
+  );
+  GPoint tail = GPoint(
+    center.x - (tail_len * sin_h) / TRIG_MAX_RATIO,
+    center.y + (tail_len * cos_h) / TRIG_MAX_RATIO
   );
 
-  graphics_context_set_stroke_color(ctx, GColorRed);
+  GPoint hand_pts[] = { tip, base_l, tail, base_r };
+  GPath *hand_path = gpath_create(&(GPathInfo){
+    .num_points = 4, .points = hand_pts
+  });
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  gpath_draw_filled(ctx, hand_path);
+  gpath_destroy(hand_path);
+
+  graphics_context_set_stroke_color(ctx, GColorBlack);
   graphics_context_set_stroke_width(ctx, 1);
-  graphics_draw_line(ctx, hand_tail, hand_tip);
+  graphics_draw_line(ctx, center, tip);
 
-  graphics_context_set_fill_color(ctx, GColorRed);
-  graphics_fill_circle(ctx, center, 3);
+  graphics_fill_circle(ctx, center, 5);
 }
 
 // ---- AppMessage -------------------------------------------------------------
