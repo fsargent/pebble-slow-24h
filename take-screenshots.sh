@@ -3,9 +3,9 @@ set -euo pipefail
 
 TIME="${1:-10:10:00}"
 PLATFORMS=(chalk gabbro)
-MODES=(24h 12h)
 DIR="screenshots"
 SRCFILE="src/c/24h.c"
+JSFILE="src/pkjs/index.js"
 
 # rain bitmask: hours 2-5 (night) + 10-15 (day)
 RAIN_BITMASK="0xFC3C"
@@ -24,39 +24,56 @@ set_rain() {
   sed -i '' "s/^#define DEFAULT_RAIN_HOURS.*/#define DEFAULT_RAIN_HOURS   $1/" "$SRCFILE"
 }
 
-for mode in "${MODES[@]}"; do
-  [ "$mode" = "12h" ] && set_12h true || set_12h false
-
+build() {
+  git checkout -- "$JSFILE" 2>/dev/null || true
+  bash inline-config.sh > /dev/null
   pebble build > /dev/null 2>&1
-  echo "Built ($mode mode)"
+}
 
-  for platform in "${PLATFORMS[@]}"; do
-    pebble install --emulator "$platform" > /dev/null 2>&1
-    pebble emu-set-time --emulator "$platform" "$TIME" > /dev/null 2>&1
-    sleep 2
-    pebble screenshot --emulator "$platform" --no-open "$DIR/${platform}-${mode}.png" > /dev/null 2>&1
-    echo "  $DIR/${platform}-${mode}.png"
-  done
+# Design #2 defaults: 12h numerals
+# Take 12h screenshots (default)
+set_12h true
+build
+echo "Built (12h mode)"
+
+for platform in "${PLATFORMS[@]}"; do
+  pebble install --emulator "$platform" > /dev/null 2>&1
+  pebble emu-set-time --emulator "$platform" "$TIME" > /dev/null 2>&1
+  sleep 2
+  pebble screenshot --emulator "$platform" --no-open "$DIR/${platform}-12h.png" > /dev/null 2>&1
+  echo "  $DIR/${platform}-12h.png"
 done
 
-# rain screenshots (24h mode with rain bitmask)
+# Take 24h screenshots
 set_12h false
-set_rain "$RAIN_BITMASK"
-mode="24h"
+build
+echo "Built (24h mode)"
 
-pebble build > /dev/null 2>&1
+for platform in "${PLATFORMS[@]}"; do
+  pebble install --emulator "$platform" > /dev/null 2>&1
+  pebble emu-set-time --emulator "$platform" "$TIME" > /dev/null 2>&1
+  sleep 2
+  pebble screenshot --emulator "$platform" --no-open "$DIR/${platform}-24h.png" > /dev/null 2>&1
+  echo "  $DIR/${platform}-24h.png"
+done
+
+# Rain screenshots (12h mode with rain bitmask)
+set_12h true
+set_rain "$RAIN_BITMASK"
+build
 echo "Built (rain mode)"
 
 for platform in "${PLATFORMS[@]}"; do
   pebble install --emulator "$platform" > /dev/null 2>&1
   pebble emu-set-time --emulator "$platform" "$TIME" > /dev/null 2>&1
   sleep 2
-  pebble screenshot --emulator "$platform" --no-open "$DIR/${platform}-${mode}-rain.png" > /dev/null 2>&1
-  echo "  $DIR/${platform}-${mode}-rain.png"
+  pebble screenshot --emulator "$platform" --no-open "$DIR/${platform}-rain.png" > /dev/null 2>&1
+  echo "  $DIR/${platform}-rain.png"
 done
 
-# restore defaults
+# Restore defaults
 set_rain "0"
-pebble build > /dev/null 2>&1
+set_12h true
+git checkout -- "$JSFILE" 2>/dev/null || true
 
 echo "Done. Defaults restored."

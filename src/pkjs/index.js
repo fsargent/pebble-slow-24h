@@ -42,7 +42,7 @@ function fetchSunAndWeather() {
       });
     },
     function(err) {
-      console.log('Geolocation unavailable: ' + err.message + ' — watch uses defaults');
+      console.log('Geolocation unavailable: ' + err.message);
     },
     { timeout: 15000, maximumAge: 300000 }
   );
@@ -52,37 +52,15 @@ Pebble.addEventListener('ready', function() {
   fetchSunAndWeather();
 });
 
+// __CONFIG_HTML__ is replaced at build time by inline-config.sh from config.html
+var CONFIG_HTML = '__CONFIG_HTML__';
+
 Pebble.addEventListener('showConfiguration', function() {
-  var url = 'data:text/html,' + encodeURIComponent(
-    '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width">' +
-    '<style>body{font-family:-apple-system,sans-serif;margin:20px;background:#f5f5f5;color:#111}' +
-    'h2{color:#111}' +
-    '.card{background:#fff;border-radius:8px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.12)}' +
-    '.row{display:flex;justify-content:space-between;align-items:center}' +
-    'label{font-size:16px;color:#111}' +
-    'input[type=checkbox]{width:22px;height:22px}' +
-    'button{width:100%;padding:14px;background:#007aff;color:#fff;border:none;border-radius:8px;font-size:16px;margin-top:16px}' +
-    '</style></head><body>' +
-    '<h2>slow-24h Settings</h2>' +
-    '<div class="card"><div class="row"><label>12-hour numerals</label>' +
-    '<input type="checkbox" id="use12h"></div></div>' +
-    '<div class="card"><div class="row"><label>Show rain overlay</label>' +
-    '<input type="checkbox" id="showRain" checked></div></div>' +
-    '<button onclick="submit()">Save</button>' +
-    '<script>' +
-    'var opts=JSON.parse(decodeURIComponent(location.hash.substring(1))||"{}");' +
-    'if(opts.use12h)document.getElementById("use12h").checked=true;' +
-    'if(opts.showRain===false)document.getElementById("showRain").checked=false;' +
-    'function submit(){var r={use12h:document.getElementById("use12h").checked,' +
-    'showRain:document.getElementById("showRain").checked};' +
-    'document.location="pebblejs://close#"+encodeURIComponent(JSON.stringify(r))}' +
-    '</script></body></html>'
-  );
   var hash = encodeURIComponent(JSON.stringify({
     use12h: localStorage.getItem('use12h') === 'true',
     showRain: localStorage.getItem('showRain') !== 'false'
   }));
-  Pebble.openURL(url + '#' + hash);
+  Pebble.openURL('data:text/html,' + CONFIG_HTML + '#' + hash);
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
