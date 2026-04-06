@@ -1,7 +1,7 @@
 {
-  "name": "24h",
+  "name": "Slow-24h",
   "author": "fsargent",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "keywords": ["pebble-app"],
   "private": true,
   "dependencies": {},
@@ -23,7 +23,9 @@
     "messageKeys": [
       "KEY_SUNRISE",
       "KEY_SUNSET",
-      "KEY_USE_12H"
+      "KEY_USE_12H",
+      "KEY_RAIN_HOURS",
+      "KEY_SHOW_RAIN"
     ],
     "resources": {
       "media": []

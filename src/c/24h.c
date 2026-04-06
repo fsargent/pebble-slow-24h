@@ -1,23 +1,30 @@
 #include <pebble.h>
 
 // ---- Persistent storage & AppMessage keys -----------------------------------
-#define PKEY_SUNRISE   1
-#define PKEY_SUNSET    2
-#define PKEY_USE_12H   3
-#define KEY_SUNRISE    0
-#define KEY_SUNSET     1
-#define KEY_USE_12H    2
+#define PKEY_SUNRISE    1
+#define PKEY_SUNSET     2
+#define PKEY_USE_12H    3
+#define PKEY_RAIN_HOURS 4
+#define PKEY_SHOW_RAIN  5
+#define KEY_SUNRISE     0
+#define KEY_SUNSET      1
+#define KEY_USE_12H     2
+#define KEY_RAIN_HOURS  3
+#define KEY_SHOW_RAIN   4
 
-#define DEFAULT_SUNRISE_MIN  392   // 6:32 AM (NYC)
-#define DEFAULT_SUNSET_MIN  1164  // 7:24 PM (NYC)
+#define DEFAULT_SUNRISE_MIN  360    // 6:00 AM
+#define DEFAULT_SUNSET_MIN   1080   // 6:00 PM
+#define DEFAULT_RAIN_HOURS   0
 
-static Window  *s_window;
-static Layer   *s_canvas_layer;
-static int32_t  s_sunrise_min   = DEFAULT_SUNRISE_MIN;
-static int32_t  s_sunset_min    = DEFAULT_SUNSET_MIN;
-static int32_t  s_sunrise_angle = 0;
-static int32_t  s_sunset_angle  = 0;
-static bool     s_use_12h       = false;
+static Window   *s_window;
+static Layer    *s_canvas_layer;
+static int32_t   s_sunrise_min   = DEFAULT_SUNRISE_MIN;
+static int32_t   s_sunset_min    = DEFAULT_SUNSET_MIN;
+static int32_t   s_sunrise_angle = 0;
+static int32_t   s_sunset_angle  = 0;
+static bool      s_use_12h       = false;
+static bool      s_show_rain     = true;
+static uint32_t  s_rain_hours    = DEFAULT_RAIN_HOURS;
 
 // ---- Angle helpers ----------------------------------------------------------
 // Noon (12:00 local) = top = 0; Midnight = bottom = TRIG_MAX_ANGLE/2
@@ -68,6 +75,28 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   } else {
     graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, sunset_angle, TRIG_MAX_ANGLE);
     graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, 0, sunrise_angle);
+  }
+
+  if (s_show_rain) {
+    for (int rh = 0; rh < 24; rh++) {
+      if (!(s_rain_hours & (1 << rh))) continue;
+      bool cur_day = angle_in_arc(hour_to_angle(rh), sunrise_angle, sunset_angle);
+      int run_start = rh;
+      while (rh < 23 && (s_rain_hours & (1 << (rh + 1)))) {
+        bool next_day = angle_in_arc(hour_to_angle(rh + 1), sunrise_angle, sunset_angle);
+        if (next_day != cur_day) break;
+        rh++;
+      }
+      int32_t a0 = hour_to_angle(run_start);
+      int32_t a1 = hour_to_angle(rh + 1);
+      graphics_context_set_fill_color(ctx, cur_day ? GColorPictonBlue : GColorOxfordBlue);
+      if (a0 <= a1) {
+        graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, a0, a1);
+      } else {
+        graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, a0, TRIG_MAX_ANGLE);
+        graphics_fill_radial(ctx, bounds, GOvalScaleModeFitCircle, radius, 0, a1);
+      }
+    }
   }
 
   // 24 tick marks
@@ -163,6 +192,12 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   Tuple *mode_t = dict_find(iter, KEY_USE_12H);
   if (mode_t) { s_use_12h = (mode_t->value->int32 != 0); persist_write_bool(PKEY_USE_12H, s_use_12h); }
 
+  Tuple *show_rain_t = dict_find(iter, KEY_SHOW_RAIN);
+  if (show_rain_t) { s_show_rain = (show_rain_t->value->int32 != 0); persist_write_bool(PKEY_SHOW_RAIN, s_show_rain); }
+
+  Tuple *rain_t = dict_find(iter, KEY_RAIN_HOURS);
+  if (rain_t) { s_rain_hours = (uint32_t)rain_t->value->int32; persist_write_int(PKEY_RAIN_HOURS, (int32_t)s_rain_hours); }
+
   if (sr_t || ss_t) update_sun_angles();
   layer_mark_dirty(s_canvas_layer);
 }
@@ -187,9 +222,11 @@ static void prv_window_unload(Window *window) {
 
 // ---- Init -------------------------------------------------------------------
 static void prv_init(void) {
-  if (persist_exists(PKEY_SUNRISE)) s_sunrise_min = persist_read_int(PKEY_SUNRISE);
-  if (persist_exists(PKEY_SUNSET))  s_sunset_min  = persist_read_int(PKEY_SUNSET);
-  if (persist_exists(PKEY_USE_12H)) s_use_12h     = persist_read_bool(PKEY_USE_12H);
+  if (persist_exists(PKEY_SUNRISE))    s_sunrise_min = persist_read_int(PKEY_SUNRISE);
+  if (persist_exists(PKEY_SUNSET))     s_sunset_min  = persist_read_int(PKEY_SUNSET);
+  if (persist_exists(PKEY_USE_12H))    s_use_12h     = persist_read_bool(PKEY_USE_12H);
+  if (persist_exists(PKEY_SHOW_RAIN))  s_show_rain   = persist_read_bool(PKEY_SHOW_RAIN);
+  if (persist_exists(PKEY_RAIN_HOURS)) s_rain_hours  = (uint32_t)persist_read_int(PKEY_RAIN_HOURS);
 
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers) {
@@ -201,7 +238,7 @@ static void prv_init(void) {
   update_sun_angles();
 
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
-  app_message_open(128, 128);
+  app_message_open(256, 128);
   app_message_register_inbox_received(inbox_received);
 }
 
