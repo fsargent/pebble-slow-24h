@@ -1,20 +1,30 @@
 #include <pebble.h>
 
 // ---- Persistent storage & AppMessage keys -----------------------------------
-#define PKEY_SUNRISE    1
-#define PKEY_SUNSET     2
-#define PKEY_USE_12H    3
-#define PKEY_RAIN_HOURS 4
-#define PKEY_SHOW_RAIN  5
-#define KEY_SUNRISE     0
-#define KEY_SUNSET      1
-#define KEY_USE_12H     2
-#define KEY_RAIN_HOURS  3
-#define KEY_SHOW_RAIN   4
+#define PKEY_SUNRISE     1
+#define PKEY_SUNSET      2
+#define PKEY_USE_12H     3
+#define PKEY_SHOW_TIDES  5
+#define PKEY_TIDE_0      6
+#define PKEY_TIDE_1      7
+#define PKEY_TIDE_2      8
+#define KEY_SUNRISE      0
+#define KEY_SUNSET       1
+#define KEY_USE_12H      2
+#define KEY_SHOW_TIDES   3
+#define KEY_TIDE_0       4
+#define KEY_TIDE_1       5
+#define KEY_TIDE_2       6
 
 #define DEFAULT_SUNRISE_MIN  330    // 5:30 AM
 #define DEFAULT_SUNSET_MIN   1155   // 7:15 PM
-#define DEFAULT_RAIN_HOURS   0
+#define MAX_TIDE_WIDTH       18
+
+// Packed tide test defaults: 8 hours per int32, 4 bits each (0-15)
+// Set non-zero values here for emulator testing, reset to 0 before shipping
+#define DEFAULT_TIDE_0       0
+#define DEFAULT_TIDE_1       0
+#define DEFAULT_TIDE_2       0
 
 static Window   *s_window;
 static Layer    *s_canvas_layer;
@@ -23,8 +33,15 @@ static int32_t   s_sunset_min    = DEFAULT_SUNSET_MIN;
 static int32_t   s_sunrise_angle = 0;
 static int32_t   s_sunset_angle  = 0;
 static bool      s_use_12h       = true;
-static bool      s_show_rain     = true;
-static uint32_t  s_rain_hours    = DEFAULT_RAIN_HOURS;
+static bool      s_show_tides    = true;
+static uint8_t   s_tide_heights[24];  // 0-15 per hour, populated from packed defaults or AppMessage
+
+// ---- Tide data packing (8 values per int32, 4 bits each) --------------------
+static void unpack_tides(uint32_t packed, int offset) {
+  for (int i = 0; i < 8; i++) {
+    s_tide_heights[offset + i] = (packed >> (i * 4)) & 0xF;
+  }
+}
 
 // ---- Angle helpers ----------------------------------------------------------
 // Noon (12:00 local) = top = 0; Midnight = bottom = TRIG_MAX_ANGLE/2
@@ -141,28 +158,22 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
     graphics_draw_line(ctx, outer, inner);
   }
 
-  // Rain overlay — 10px ring inside the tick marks
-  int rain_width = 10;
-  int rain_inset = radius - tick_base + 14;
-  GRect rain_bounds = grect_inset(bounds, GEdgeInsets(rain_inset));
-  if (s_show_rain) {
-    for (int rh = 0; rh < 24; rh++) {
-      if (!(s_rain_hours & (1 << rh))) continue;
-      bool cur_day = angle_in_arc(hour_to_angle(rh), sunrise_angle, sunset_angle);
-      int run_start = rh;
-      while (rh < 23 && (s_rain_hours & (1 << (rh + 1)))) {
-        bool next_day = angle_in_arc(hour_to_angle(rh + 1), sunrise_angle, sunset_angle);
-        if (next_day != cur_day) break;
-        rh++;
-      }
-      int32_t a0 = hour_to_angle(run_start);
-      int32_t a1 = hour_to_angle(rh + 1);
-      graphics_context_set_fill_color(ctx, GColorPictonBlue);
+  // Tide overlay — variable-width per-hour bars inside the tick marks
+  int tide_inset = radius - tick_base + 14;
+  GRect tide_bounds = grect_inset(bounds, GEdgeInsets(tide_inset));
+  if (s_show_tides) {
+    for (int th = 0; th < 24; th++) {
+      if (s_tide_heights[th] == 0) continue;
+      int bar_width = 1 + (s_tide_heights[th] * (MAX_TIDE_WIDTH - 1)) / 15;
+      int32_t a0 = hour_to_angle(th);
+      int32_t a1 = hour_to_angle(th + 1);
+      bool is_day = angle_in_arc(hour_to_angle(th), sunrise_angle, sunset_angle);
+      graphics_context_set_fill_color(ctx, is_day ? GColorPictonBlue : GColorOxfordBlue);
       if (a0 <= a1) {
-        graphics_fill_radial(ctx, rain_bounds, GOvalScaleModeFitCircle, rain_width, a0, a1);
+        graphics_fill_radial(ctx, tide_bounds, GOvalScaleModeFitCircle, bar_width, a0, a1);
       } else {
-        graphics_fill_radial(ctx, rain_bounds, GOvalScaleModeFitCircle, rain_width, a0, TRIG_MAX_ANGLE);
-        graphics_fill_radial(ctx, rain_bounds, GOvalScaleModeFitCircle, rain_width, 0, a1);
+        graphics_fill_radial(ctx, tide_bounds, GOvalScaleModeFitCircle, bar_width, a0, TRIG_MAX_ANGLE);
+        graphics_fill_radial(ctx, tide_bounds, GOvalScaleModeFitCircle, bar_width, 0, a1);
       }
     }
   }
@@ -241,11 +252,15 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   Tuple *mode_t = dict_find(iter, KEY_USE_12H);
   if (mode_t) { s_use_12h = (mode_t->value->int32 != 0); persist_write_bool(PKEY_USE_12H, s_use_12h); }
 
-  Tuple *show_rain_t = dict_find(iter, KEY_SHOW_RAIN);
-  if (show_rain_t) { s_show_rain = (show_rain_t->value->int32 != 0); persist_write_bool(PKEY_SHOW_RAIN, s_show_rain); }
+  Tuple *show_tides_t = dict_find(iter, KEY_SHOW_TIDES);
+  if (show_tides_t) { s_show_tides = (show_tides_t->value->int32 != 0); persist_write_bool(PKEY_SHOW_TIDES, s_show_tides); }
 
-  Tuple *rain_t = dict_find(iter, KEY_RAIN_HOURS);
-  if (rain_t) { s_rain_hours = (uint32_t)rain_t->value->int32; persist_write_int(PKEY_RAIN_HOURS, (int32_t)s_rain_hours); }
+  Tuple *t0 = dict_find(iter, KEY_TIDE_0);
+  Tuple *t1 = dict_find(iter, KEY_TIDE_1);
+  Tuple *t2 = dict_find(iter, KEY_TIDE_2);
+  if (t0) { unpack_tides((uint32_t)t0->value->int32, 0);  persist_write_int(PKEY_TIDE_0, t0->value->int32); }
+  if (t1) { unpack_tides((uint32_t)t1->value->int32, 8);  persist_write_int(PKEY_TIDE_1, t1->value->int32); }
+  if (t2) { unpack_tides((uint32_t)t2->value->int32, 16); persist_write_int(PKEY_TIDE_2, t2->value->int32); }
 
   if (sr_t || ss_t) update_sun_angles();
   layer_mark_dirty(s_canvas_layer);
@@ -271,11 +286,18 @@ static void prv_window_unload(Window *window) {
 
 // ---- Init -------------------------------------------------------------------
 static void prv_init(void) {
-  if (persist_exists(PKEY_SUNRISE))    s_sunrise_min = persist_read_int(PKEY_SUNRISE);
-  if (persist_exists(PKEY_SUNSET))     s_sunset_min  = persist_read_int(PKEY_SUNSET);
-  if (persist_exists(PKEY_USE_12H))    s_use_12h     = persist_read_bool(PKEY_USE_12H);
-  if (persist_exists(PKEY_SHOW_RAIN))  s_show_rain   = persist_read_bool(PKEY_SHOW_RAIN);
-  if (persist_exists(PKEY_RAIN_HOURS)) s_rain_hours  = (uint32_t)persist_read_int(PKEY_RAIN_HOURS);
+  // Load compile-time defaults (useful for emulator testing)
+  unpack_tides(DEFAULT_TIDE_0, 0);
+  unpack_tides(DEFAULT_TIDE_1, 8);
+  unpack_tides(DEFAULT_TIDE_2, 16);
+
+  if (persist_exists(PKEY_SUNRISE))    s_sunrise_min  = persist_read_int(PKEY_SUNRISE);
+  if (persist_exists(PKEY_SUNSET))     s_sunset_min   = persist_read_int(PKEY_SUNSET);
+  if (persist_exists(PKEY_USE_12H))    s_use_12h      = persist_read_bool(PKEY_USE_12H);
+  if (persist_exists(PKEY_SHOW_TIDES)) s_show_tides   = persist_read_bool(PKEY_SHOW_TIDES);
+  if (persist_exists(PKEY_TIDE_0))     unpack_tides((uint32_t)persist_read_int(PKEY_TIDE_0), 0);
+  if (persist_exists(PKEY_TIDE_1))     unpack_tides((uint32_t)persist_read_int(PKEY_TIDE_1), 8);
+  if (persist_exists(PKEY_TIDE_2))     unpack_tides((uint32_t)persist_read_int(PKEY_TIDE_2), 16);
 
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers) {

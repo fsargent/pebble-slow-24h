@@ -1,13 +1,13 @@
 {
-  "name": "SingleHanded #2",
+  "name": "SingleHanded #3 Tides",
   "author": "fsargent",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "keywords": ["pebble-app"],
   "private": true,
   "dependencies": {},
   "pebble": {
-    "displayName": "SingleHanded #2",
-    "uuid": "4bb6102f-eacf-4ed0-875f-84729f8cd8d3",
+    "displayName": "SingleHanded #3 Tides",
+    "uuid": "a8dbfbee-2f83-4ca6-b106-b3eb920ceed0",
     "sdkVersion": "3",
     "enableMultiJS": true,
     "targetPlatforms": [
@@ -24,8 +24,10 @@
       "KEY_SUNRISE",
       "KEY_SUNSET",
       "KEY_USE_12H",
-      "KEY_RAIN_HOURS",
-      "KEY_SHOW_RAIN"
+      "KEY_SHOW_TIDES",
+      "KEY_TIDE_0",
+      "KEY_TIDE_1",
+      "KEY_TIDE_2"
     ],
     "resources": {
       "media": []

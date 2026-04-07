@@ -20,8 +20,8 @@
     <input type="checkbox" id="use12h">
   </div></div>
   <div class="card"><div class="row">
-    <label>Show rain overlay</label>
-    <input type="checkbox" id="showRain" checked>
+    <label>Show tide overlay</label>
+    <input type="checkbox" id="showTides" checked>
   </div></div>
   <button onclick="submit()">Save</button>
   <div id="result"></div>
@@ -29,12 +29,12 @@
     var opts = {};
     try { opts = JSON.parse(decodeURIComponent(location.hash.substring(1))); } catch(e) {}
     if (opts.use12h) document.getElementById('use12h').checked = true;
-    if (opts.showRain === false) document.getElementById('showRain').checked = false;
+    if (opts.showTides === false) document.getElementById('showTides').checked = false;
 
     function submit() {
       var r = {
         use12h: document.getElementById('use12h').checked,
-        showRain: document.getElementById('showRain').checked
+        showTides: document.getElementById('showTides').checked
       };
       if (window.location.protocol === 'data:') {
         document.location = 'pebblejs://close#' + encodeURIComponent(JSON.stringify(r));
